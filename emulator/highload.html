@@ -1,0 +1,1793 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Виртуальная лаборатория: Симулятор HighLoad-архитектуры</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Font Awesome for crisp engineering icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              850: '#151e2e',
+              900: '#0f172a',
+              950: '#090d16',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #090d16;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Кастомные скроллбары в стиле Grafana */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* Стилизация ползунков */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 999px;
+      background: #1e293b;
+      border: 1px solid #334155;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      margin-top: -5px;
+      background-color: #38bdf8;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      border: 2px solid #0f172a;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+      transition: transform 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+    }
+
+    /* Анимация пульсации для активных алертов */
+    @keyframes pulse-border {
+      0%, 100% { border-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 12px rgba(239, 68, 68, 0.25); }
+      50% { border-color: rgba(239, 68, 68, 0.3); box-shadow: 0 0 4px rgba(239, 68, 68, 0.05); }
+    }
+    .node-critical {
+      animation: pulse-border 1.5s infinite;
+    }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.65);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-sky-500 selection:text-white">
+
+  <!-- ВЕРХНЯЯ ПАНЕЛЬ НАВИГАЦИИ И ЛАБОРАТОРНЫХ ЗАДАНИЙ -->
+  <header class="glass-panel sticky top-0 z-30 border-b border-slate-800 px-4 py-2.5">
+    <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      <!-- Логотип и название модуля -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+          <i class="fa-solid fa-server text-white text-base"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm sm:text-base font-bold tracking-tight text-white">HighLoad Lab Simulator</h1>
+            <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30">
+              v2.4 • LIVE ENGINE
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400">Модуль: Проектирование и разработка высоконагруженных систем</p>
+        </div>
+      </div>
+
+      <!-- Выбор лабораторного квеста -->
+      <div class="flex-1 max-w-2xl flex flex-wrap items-center gap-2 bg-slate-950/90 border border-slate-800 rounded-xl p-1.5">
+        <div class="flex items-center gap-2 pl-2">
+          <i class="fa-solid fa-graduation-cap text-amber-400 text-sm"></i>
+          <select id="labSelector" class="bg-transparent text-xs sm:text-sm font-medium text-slate-200 focus:outline-none cursor-pointer pr-2">
+            <option value="0" class="bg-slate-900">Свободная песочница (Sandbox)</option>
+            <option value="1" class="bg-slate-900">ЛР №1: Оптимизация БД и базовое масштабирование (350 RPS)</option>
+            <option value="2" class="bg-slate-900">ЛР №2: Кэширование чтения (1 500 RPS, 90% Read)</option>
+            <option value="3" class="bg-slate-900">ЛР №3: Пережить Flash Sale (3 000 RPS пик + Очереди)</option>
+            <option value="4" class="bg-slate-900">ЛР №4: Отказоустойчивость (Падение узла без 5xx ошибок)</option>
+            <option value="5" class="bg-slate-900">ЛР №5: FinOps — Максимум RPS при бюджете ≤ $1.20/ч</option>
+          </select>
+        </div>
+
+        <!-- Статус выполнения выбранной ЛР -->
+        <div id="labProgressContainer" class="hidden flex-1 flex items-center justify-end gap-2 pr-1">
+          <div class="w-24 sm:w-32 bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
+            <div id="labProgressBar" class="bg-emerald-500 h-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <span id="labStatusBadge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 whitespace-nowrap">
+            0/5 сек
+          </span>
+        </div>
+      </div>
+
+      <!-- Кнопки управления симуляцией -->
+      <div class="flex items-center gap-2">
+        <button id="btnPause" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-pause" id="pauseIcon"></i>
+          <span id="pauseText">Пауза</span>
+        </button>
+        <button id="btnReset" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-rotate-left"></i>
+          <span>Сброс</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Панель описания требований текущей лабораторной работы -->
+    <div id="labDescriptionBanner" class="hidden max-w-[1600px] mx-auto mt-2 pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div class="flex items-center gap-2 text-slate-300">
+        <span class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">Цель ЛР:</span>
+        <span id="labGoalText">Описание задачи...</span>
+      </div>
+      <div id="labCriteriaPills" class="flex flex-wrap items-center gap-1.5 font-mono text-[11px]"></div>
+    </div>
+  </header>
+
+  <!-- ОСНОВНАЯ РАБОЧАЯ ОБЛАСТЬ -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+    <!-- ЛЕВАЯ КОЛОНКА: ПАНЕЛЬ ИНЖЕНЕРНОГО УПРАВЛЕНИЯ (4 колонки на десктопе) -->
+    <aside class="lg:col-span-4 xl:col-span-3 flex flex-col gap-3">
+
+      <!-- 1. Генератор нагрузки (Traffic Control) -->
+      <section class="glass-panel rounded-xl p-3.5 shadow-lg">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-2">
+            <i class="fa-solid fa-bolt"></i> Генератор нагрузки
+          </h2>
+          <span id="effectiveRpsBadge" class="font-mono text-xs font-bold text-white bg-sky-500/20 border border-sky-500/40 px-2 py-0.5 rounded">
+            120 RPS
+          </span>
+        </div>
+
+        <!-- Ползунок RPS -->
+        <div class="mb-3">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-slate-400">Базовый поток (RPS)</span>
+            <span id="rpsValueLabel" class="font-mono font-semibold text-slate-200">120 req/s</span>
+          </div>
+          <input type="range" id="rpsSlider" min="10" max="4000" step="10" value="120" class="w-full" />
+          <div class="flex justify-between text-[10px] font-mono text-slate-500 mt-0.5">
+            <span>10</span>
+            <span>1 000</span>
+            <span>2 500</span>
+            <span>4 000</span>
+          </div>
+        </div>
+
+        <!-- Соотношение Read / Write -->
+        <div class="mb-3">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-sky-400 font-medium">Read: <span id="readPctLabel" class="font-mono">80%</span></span>
+            <span class="text-amber-400 font-medium">Write: <span id="writePctLabel" class="font-mono">20%</span></span>
+          </div>
+          <input type="range" id="rwSlider" min="10" max="98" step="2" value="80" class="w-full" />
+        </div>
+
+        <!-- Кнопка Flash Sale -->
+        <button id="btnFlashSale" class="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-600/20 hover:from-amber-500/30 hover:to-orange-600/30 border border-amber-500/40 text-amber-300 text-xs font-semibold transition flex items-center justify-center gap-2 shadow-sm">
+          <i class="fa-solid fa-fire-flame-curved"></i>
+          <span id="flashSaleText">Запустить Flash Sale (x3 на 10 сек)</span>
+        </button>
+      </section>
+
+      <!-- 2. Конструктор архитектуры (Architecture Topology) -->
+      <section class="glass-panel rounded-xl p-3.5 shadow-lg flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+            <i class="fa-solid fa-cubes"></i> Конструктор кластера
+          </h2>
+          <span id="infraCostLabel" class="font-mono text-xs font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">
+            $0.35 / ч
+          </span>
+        </div>
+
+        <!-- CDN / Edge Cache -->
+        <div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 flex items-center justify-between">
+          <div>
+            <div class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+              <i class="fa-solid fa-globe text-cyan-400"></i> CDN / Edge Cache
+            </div>
+            <p class="text-[11px] text-slate-400">Снимает 35% статического Read-трафика</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="toggleCdn" class="sr-only peer">
+            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+          </label>
+        </div>
+
+        <!-- Load Balancer (Nginx) -->
+        <div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <div class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-network-wired text-indigo-400"></i> Nginx Load Balancer
+              </div>
+              <p class="text-[11px] text-slate-400">Распределение трафика по воркерам</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggleLb" checked class="sr-only peer">
+              <div class="w-9 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
+            </label>
+          </div>
+          <div id="lbOptions" class="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-800/80 text-[11px]">
+            <select id="lbAlgo" class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-300 focus:outline-none">
+              <option value="round_robin">Round Robin</option>
+              <option value="least_conn">Least Connections</option>
+            </select>
+            <label class="flex items-center gap-1.5 bg-slate-950 border border-slate-700 rounded px-2 py-1 cursor-pointer text-slate-300">
+              <input type="checkbox" id="toggleRateLimit" class="accent-indigo-500">
+              <span>Rate Limit</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Application Servers (Horizontal Scaling) -->
+        <div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-microchip text-sky-400"></i> App-серверы (Backend)
+              </div>
+              <p class="text-[11px] text-slate-400">Лимит: ~250 RPS на 1 инстанс</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="btnRemoveApp" class="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold transition">-</button>
+              <span id="appCountLabel" class="font-mono text-sm font-bold text-white w-4 text-center">1</span>
+              <button id="btnAddApp" class="w-7 h-7 rounded bg-sky-600 hover:bg-sky-500 text-white font-bold transition">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Message Queue (RabbitMQ / Kafka) -->
+        <div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 flex items-center justify-between">
+          <div>
+            <div class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+              <i class="fa-solid fa-layer-group text-purple-400"></i> Очередь (RabbitMQ)
+            </div>
+            <p class="text-[11px] text-slate-400">Буферизует Write-пики и снижает нагрузку</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="toggleQueue" class="sr-only peer">
+            <div class="w-9 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
+          </label>
+        </div>
+
+        <!-- Distributed Cache (Redis) -->
+        <div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800">
+          <div class="flex items-center justify-between mb-1.5">
+            <div>
+              <div class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-memory text-emerald-400"></i> Redis Cluster (Кэш)
+              </div>
+              <p class="text-[11px] text-slate-400">Cache-Aside для частых SELECT</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggleRedis" class="sr-only peer">
+              <div class="w-9 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+          </div>
+          <div id="redisOptions" class="hidden pt-1.5 border-t border-slate-800/80">
+            <div class="flex justify-between text-[11px] mb-1">
+              <span class="text-slate-400">Cache Hit Rate:</span>
+              <span id="cacheHitLabel" class="font-mono text-emerald-400 font-semibold">85%</span>
+            </div>
+            <input type="range" id="cacheHitSlider" min="40" max="98" step="2" value="85" class="w-full" />
+          </div>
+        </div>
+
+        <!-- PostgreSQL Cluster (Primary + Read Replicas + Indexing) -->
+        <div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-database text-amber-400"></i> PostgreSQL Read-реплики
+              </div>
+              <p class="text-[11px] text-slate-400">Масштабирование чтения (0–4 узла)</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="btnRemoveReplica" class="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold transition">-</button>
+              <span id="replicaCountLabel" class="font-mono text-sm font-bold text-white w-4 text-center">0</span>
+              <button id="btnAddReplica" class="w-7 h-7 rounded bg-amber-600 hover:bg-amber-500 text-white font-bold transition">+</button>
+            </div>
+          </div>
+
+          <label class="flex items-center justify-between pt-2 border-t border-slate-800/80 cursor-pointer">
+            <span class="text-[11px] text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-bolt-lightning text-yellow-400"></i> B-Tree / GIN Индексы в БД
+            </span>
+            <input type="checkbox" id="toggleDbIndex" class="accent-amber-500 w-4 h-4">
+          </label>
+        </div>
+      </section>
+
+      <!-- 3. Chaos Engineering (Инъекция сбоев) -->
+      <section class="glass-panel rounded-xl p-3.5 shadow-lg">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-2 mb-2.5">
+          <i class="fa-solid fa-skull-crossbones"></i> Chaos Engineering (Сбои)
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
+          <button id="btnKillNode" class="w-full py-1.5 px-3 rounded-lg bg-slate-900 hover:bg-rose-950/50 border border-slate-700 hover:border-rose-500/50 text-xs text-slate-200 transition flex items-center justify-between">
+            <span><i class="fa-solid fa-power-off text-rose-400 mr-1.5"></i> Убить 1 App-сервер</span>
+            <span id="deadNodesBadge" class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">0 упало</span>
+          </button>
+          <button id="btnCacheStampede" class="w-full py-1.5 px-3 rounded-lg bg-slate-900 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500/50 text-xs text-slate-200 transition flex items-center justify-between">
+            <span><i class="fa-solid fa-burst text-amber-400 mr-1.5"></i> Cache Stampede (Сброс кэша)</span>
+            <span id="stampedeStatus" class="font-mono text-[10px] text-slate-400">Норма</span>
+          </button>
+        </div>
+      </section>
+
+    </aside>
+
+    <!-- ПРАВАЯ КОЛОНКА: ИНТЕРАКТИВНЫЙ ХОЛСТ АРХИТЕКТУРЫ + GRAFANA-ДАШБОРД (8/9 колонок) -->
+    <div class="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
+
+      <!-- ВЕРХНИЙ БЛОК: КЛЮЧЕВЫЕ МЕТРИКИ (KPI CARDS) -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <!-- Успешный Throughput -->
+        <div class="glass-panel rounded-xl p-3 border-l-4 border-l-emerald-500">
+          <div class="text-[11px] text-slate-400 font-medium flex items-center justify-between">
+            <span>УСПЕШНЫЙ RPS</span>
+            <i class="fa-solid fa-check-circle text-emerald-400"></i>
+          </div>
+          <div class="mt-1 flex items-baseline gap-2">
+            <span id="kpiSuccessRps" class="text-xl sm:text-2xl font-mono font-bold text-white">120</span>
+            <span class="text-xs font-mono text-emerald-400" id="kpiSuccessRate">100%</span>
+          </div>
+          <div class="text-[10px] text-slate-500 mt-0.5 font-mono">Ошибок: <span id="kpiErrorRps" class="text-slate-300">0 req/s</span></div>
+        </div>
+
+        <!-- Latency p95 -->
+        <div class="glass-panel rounded-xl p-3 border-l-4 border-l-sky-500" id="latencyCard">
+          <div class="text-[11px] text-slate-400 font-medium flex items-center justify-between">
+            <span>LATENCY (p95)</span>
+            <i class="fa-solid fa-stopwatch text-sky-400"></i>
+          </div>
+          <div class="mt-1 flex items-baseline gap-1.5">
+            <span id="kpiLatency" class="text-xl sm:text-2xl font-mono font-bold text-white">24</span>
+            <span class="text-xs font-mono text-slate-400">мс</span>
+          </div>
+          <div class="text-[10px] text-slate-500 mt-0.5 font-mono">p99: <span id="kpiLatencyP99" class="text-slate-300">38 мс</span></div>
+        </div>
+
+        <!-- Узкое место / Макс. нагрузка -->
+        <div class="glass-panel rounded-xl p-3 border-l-4 border-l-amber-500" id="bottleneckCard">
+          <div class="text-[11px] text-slate-400 font-medium flex items-center justify-between">
+            <span>НАГРУЗКА КЛАСТЕРА</span>
+            <i class="fa-solid fa-gauge-high text-amber-400"></i>
+          </div>
+          <div class="mt-1 flex items-baseline gap-2">
+            <span id="kpiMaxLoad" class="text-xl sm:text-2xl font-mono font-bold text-white">32%</span>
+            <span id="kpiBottleneckNode" class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 truncate">PostgreSQL</span>
+          </div>
+          <div class="text-[10px] text-slate-500 mt-0.5 font-mono">Очередь: <span id="kpiQueueDepth" class="text-slate-300">0 сообщ.</span></div>
+        </div>
+
+        <!-- Стоимость инфраструктуры (FinOps) -->
+        <div class="glass-panel rounded-xl p-3 border-l-4 border-l-purple-500">
+          <div class="text-[11px] text-slate-400 font-medium flex items-center justify-between">
+            <span>СТОИМОСТЬ (FINOPS)</span>
+            <i class="fa-solid fa-coins text-purple-400"></i>
+          </div>
+          <div class="mt-1 flex items-baseline gap-1.5">
+            <span id="kpiCost" class="text-xl sm:text-2xl font-mono font-bold text-white">$0.35</span>
+            <span class="text-xs font-mono text-slate-400">/ час</span>
+          </div>
+          <div class="text-[10px] text-slate-500 mt-0.5 font-mono">Цена 1k req: <span id="kpiCostPerReq" class="text-slate-300">$0.0008</span></div>
+        </div>
+      </div>
+
+      <!-- ЦЕНТРАЛЬНЫЙ БЛОК: ВИЗУАЛЬНАЯ СХЕМА АРХИТЕКТУРЫ (CANVAS) -->
+      <div class="glass-panel rounded-xl p-3 shadow-xl relative overflow-hidden flex flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2 px-1">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">Топология потоков данных (Live Packet Flow)</h3>
+          </div>
+          <!-- Легенда пакетов -->
+          <div class="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block shadow shadow-sky-400"></span> Read (GET)</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block shadow shadow-amber-400"></span> Write (POST)</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block shadow shadow-emerald-400"></span> Cache Hit</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block shadow shadow-rose-500"></span> Ошибка 5xx/429</span>
+          </div>
+        </div>
+
+        <!-- Контейнер Canvas для топологии -->
+        <div id="topologyWrapper" class="w-full h-[360px] sm:h-[400px] bg-slate-950/90 rounded-lg border border-slate-800/90 relative">
+          <canvas id="topologyCanvas" class="w-full h-full block"></canvas>
+
+          <!-- Всплывающая подсказка при наведении на узел -->
+          <div id="nodeTooltip" class="hidden pointer-events-none absolute z-20 bg-slate-900/95 border border-slate-700 rounded-lg p-2.5 shadow-xl text-xs max-w-xs">
+            <div id="tooltipTitle" class="font-bold text-white mb-1">Узел</div>
+            <div id="tooltipDesc" class="text-slate-300 text-[11px] leading-relaxed">Описание</div>
+            <div id="tooltipMetrics" class="mt-1.5 pt-1.5 border-t border-slate-800 font-mono text-[11px] text-sky-400"></div>
+          </div>
+        </div>
+
+        <!-- Инженерный советник (AI / Diagnostic Advisor Banner) -->
+        <div id="advisorBanner" class="mt-2.5 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 flex items-start gap-2.5 text-xs">
+          <i id="advisorIcon" class="fa-solid fa-circle-info text-sky-400 mt-0.5 text-sm"></i>
+          <div class="flex-1">
+            <span class="font-semibold text-slate-200">Диагностика системы: </span>
+            <span id="advisorText" class="text-slate-300">Система работает в штатном режиме. Попробуйте увеличить RPS или запустить Flash Sale, чтобы найти первое узкое место.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- НИЖНИЙ БЛОК: GRAFANA-ДАШБОРД (ГРАФИКИ В РЕАЛЬНОМ ВРЕМЕНИ) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- График 1: RPS (Успешные vs Ошибки) -->
+        <div class="glass-panel rounded-xl p-3 flex flex-col">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-300">Throughput (RPS)</span>
+            <span class="text-[10px] font-mono text-slate-500">60 сек окно</span>
+          </div>
+          <div class="h-36 w-full relative">
+            <canvas id="chartRps"></canvas>
+          </div>
+        </div>
+
+        <!-- График 2: Latency p95 / p99 -->
+        <div class="glass-panel rounded-xl p-3 flex flex-col">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-300">Время ответа Latency (мс)</span>
+            <span class="text-[10px] font-mono text-slate-500">p95 / p99</span>
+          </div>
+          <div class="h-36 w-full relative">
+            <canvas id="chartLatency"></canvas>
+          </div>
+        </div>
+
+        <!-- График 3: Утилизация ресурсов (%) -->
+        <div class="glass-panel rounded-xl p-3 flex flex-col">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-300">Загрузка узлов CPU/IO (%)</span>
+            <span class="text-[10px] font-mono text-slate-500">App / Redis / DB</span>
+          </div>
+          <div class="h-36 w-full relative">
+            <canvas id="chartCpu"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    /**
+     * ============================================================================
+     * ЯДРО СИМУЛЯТОРА ВЫСОКОНАГРУЖЕННЫХ СИСТЕМ (HighLoad Physics & Queuing Engine)
+     * ============================================================================
+     */
+
+    // Конфигурация лабораторных работ для студентов
+    const LAB_SCENARIOS = {
+      0: {
+        title: "Свободная песочница",
+        goal: "Экспериментируйте с любыми параметрами нагрузки и топологией кластера.",
+        criteria: []
+      },
+      1: {
+        title: "ЛР №1: Оптимизация БД и горизонтальное масштабирование",
+        goal: "Установите поток 350 RPS (80% Read). Добейтесь 0% ошибок и Latency p95 < 120 мс.",
+        preset: { rps: 350, readRatio: 80, cdn: false, lb: false, apps: 1, queue: false, redis: false, replicas: 0, dbIndex: false },
+        check: (s, m) => s.rps >= 350 && m.errorRate === 0 && m.latencyP95 < 120,
+        pills: ["RPS ≥ 350", "Ошибки = 0%", "Latency p95 < 120 мс"]
+      },
+      2: {
+        title: "ЛР №2: Кэширование чтения (Read-Heavy)",
+        goal: "Настройте 1 500 RPS при 90% Read. Внедрите Redis и оптимизируйте кластер до Latency < 80 мс и 0% ошибок.",
+        preset: { rps: 1500, readRatio: 90, cdn: false, lb: true, apps: 2, queue: false, redis: false, replicas: 0, dbIndex: true },
+        check: (s, m) => s.rps >= 1500 && s.readRatio >= 90 && s.redis && m.errorRate === 0 && m.latencyP95 < 80,
+        pills: ["RPS ≥ 1500", "Read ≥ 90%", "Redis ON", "Latency < 80 мс", "Ошибки = 0%"]
+      },
+      3: {
+        title: "ЛР №3: Сглаживание пиков (Flash Sale & Очереди)",
+        goal: "При базовом потоке 1 000 RPS (50% Write) включите очередь RabbitMQ и переживите Flash Sale (3 000 RPS) без потерь запросов.",
+        preset: { rps: 1000, readRatio: 50, cdn: false, lb: true, apps: 3, queue: false, redis: true, replicas: 1, dbIndex: true },
+        check: (s, m) => s.rps >= 1000 && s.queue && m.effectiveRps >= 2800 && m.errorRate < 1,
+        pills: ["База ≥ 1000 RPS", "RabbitMQ ON", "Flash Sale (≥ 2800 RPS)", "Ошибки < 1%"]
+      },
+      4: {
+        title: "ЛР №4: Отказоустойчивость (High Availability)",
+        goal: "При 800 RPS обеспечьте резервирование: при 1 упавшем App-сервере система должна работать без ошибок (0% 5xx) и с Latency < 150 мс.",
+        preset: { rps: 800, readRatio: 80, cdn: false, lb: true, apps: 2, queue: false, redis: true, replicas: 1, dbIndex: true },
+        check: (s, m) => s.rps >= 800 && s.deadApps >= 1 && m.errorRate === 0 && m.latencyP95 < 150,
+        pills: ["RPS ≥ 800", "Убит ≥ 1 App-узел", "Ошибки = 0%", "Latency < 150 мс"]
+      },
+      5: {
+        title: "ЛР №5: FinOps (Оптимальная архитектура)",
+        goal: "Выдержите 2 000 RPS (85% Read) с 0% ошибок и Latency < 100 мс, уложившись в бюджет ≤ $1.20 / час.",
+        preset: { rps: 2000, readRatio: 85, cdn: false, lb: false, apps: 1, queue: false, redis: false, replicas: 0, dbIndex: false },
+        check: (s, m) => s.rps >= 2000 && m.errorRate === 0 && m.latencyP95 < 100 && m.costPerHour <= 1.20,
+        pills: ["RPS ≥ 2000", "Ошибки = 0%", "Latency < 100 мс", "Бюджет ≤ $1.20/ч"]
+      }
+    };
+
+    // Глобальное состояние архитектуры и симуляции
+    const state = {
+      paused: false,
+      rps: 120,
+      readRatio: 80,
+      flashSaleTimer: 0, // оставшиеся секунды Flash Sale
+      cdn: false,
+      lb: true,
+      lbAlgo: 'round_robin',
+      rateLimit: false,
+      apps: 1,
+      deadApps: 0,
+      queue: false,
+      queueDepth: 0,
+      redis: false,
+      cacheHitRate: 85,
+      stampedeTimer: 0, // оставшиеся секунды Cache Stampede
+      replicas: 0,
+      dbIndex: false,
+      activeLab: 0,
+      labHoldSeconds: 0
+    };
+
+    // Текущие вычисленные телеметрические метрики
+    const metrics = {
+      effectiveRps: 120,
+      successRps: 120,
+      errorRps: 0,
+      errorRate: 0,
+      latencyP95: 25,
+      latencyP99: 40,
+      appLoads: [20],
+      avgAppLoad: 20,
+      redisLoad: 0,
+      dbPrimaryLoad: 30,
+      dbReplicaLoads: [],
+      avgReplicaLoad: 0,
+      maxLoad: 30,
+      bottleneckName: 'PostgreSQL',
+      costPerHour: 0.35,
+      cdnSavedRps: 0,
+      redisHitRps: 0,
+      dbReadRps: 0,
+      dbWriteRps: 0
+    };
+
+    // История для графиков (60 точек = 60 секунд)
+    const HISTORY_LEN = 60;
+    const history = {
+      successRps: Array(HISTORY_LEN).fill(120),
+      errorRps: Array(HISTORY_LEN).fill(0),
+      latencyP95: Array(HISTORY_LEN).fill(25),
+      latencyP99: Array(HISTORY_LEN).fill(40),
+      appCpu: Array(HISTORY_LEN).fill(20),
+      redisCpu: Array(HISTORY_LEN).fill(0),
+      dbPrimaryCpu: Array(HISTORY_LEN).fill(30),
+      dbReplicaCpu: Array(HISTORY_LEN).fill(0)
+    };
+
+    /**
+     * Расчёт стоимости инфраструктуры ($ / час)
+     */
+    function calculateCost() {
+      let cost = 0.15; // Базовый PostgreSQL Primary
+      cost += state.apps * 0.12; // Каждый App-инстанс
+      cost += state.replicas * 0.12; // Каждая Read-реплика
+      if (state.cdn) cost += 0.08;
+      if (state.lb && state.apps > 1) cost += 0.05;
+      if (state.redis) cost += 0.14;
+      if (state.queue) cost += 0.09;
+      return Number(cost.toFixed(2));
+    }
+
+    /**
+     * Основной шаг математической модели системы массового обслуживания (вызывается раз в 0.25 сек)
+     */
+    function stepSimulation(dt = 0.25) {
+      if (state.paused) return;
+
+      // Таймеры спецэффектов
+      if (state.flashSaleTimer > 0) {
+        state.flashSaleTimer = Math.max(0, state.flashSaleTimer - dt);
+        updateFlashSaleUI();
+      }
+      if (state.stampedeTimer > 0) {
+        state.stampedeTimer = Math.max(0, state.stampedeTimer - dt);
+        document.getElementById('stampedeStatus').textContent = state.stampedeTimer > 0
+          ? `СБОЙ (${Math.ceil(state.stampedeTimer)}с)`
+          : 'Норма';
+        document.getElementById('stampedeStatus').className = state.stampedeTimer > 0
+          ? 'font-mono text-[10px] text-amber-400 font-bold'
+          : 'font-mono text-[10px] text-slate-400';
+      }
+
+      // 1. Входящий трафик
+      const multiplier = state.flashSaleTimer > 0 ? 3.0 : 1.0;
+      const incomingRps = Math.round(state.rps * multiplier);
+      metrics.effectiveRps = incomingRps;
+      document.getElementById('effectiveRpsBadge').textContent = `${incomingRps.toLocaleString('ru-RU')} RPS`;
+
+      const readFrac = state.readRatio / 100;
+      const writeFrac = 1 - readFrac;
+
+      let totalReadRps = incomingRps * readFrac;
+      let totalWriteRps = incomingRps * writeFrac;
+
+      // 2. CDN отсекает часть Read-запросов на периферии
+      const cdnSaved = state.cdn ? totalReadRps * 0.35 : 0;
+      metrics.cdnSavedRps = cdnSaved;
+      const originReadRps = totalReadRps - cdnSaved;
+      const originTotalRps = originReadRps + totalWriteRps;
+
+      // 3. Балансировщик нагрузки и App-серверы
+      const healthyApps = Math.max(0, state.apps - state.deadApps);
+      const effectiveLb = state.lb && state.apps > 1;
+      // Без балансировщика весь трафик идёт только на 1-й сервер (если он жив)
+      const activeReceivingApps = healthyApps === 0 ? 0 : (effectiveLb ? healthyApps : (state.deadApps === 0 ? 1 : 0));
+
+      // Пропускная способность одного App-сервера (~260 RPS, выше при наличии очереди)
+      const singleAppCap = state.queue ? 320 : 260;
+      const totalAppCapacity = activeReceivingApps * singleAppCap;
+
+      // Rate Limiting в Nginx защищает серверы от полного падения при перегрузе, отбрасывая лишнее кодом 429
+      let rateLimitedRps = 0;
+      let passedToAppRps = originTotalRps;
+
+      if (effectiveLb && state.rateLimit && totalAppCapacity > 0 && originTotalRps > totalAppCapacity * 1.05) {
+        passedToAppRps = totalAppCapacity * 1.02;
+        rateLimitedRps = originTotalRps - passedToAppRps;
+      }
+
+      // Распределение нагрузки по инстансам (Least Connections балансирует ровнее, чем Round Robin)
+      const algoEfficiency = state.lbAlgo === 'least_conn' ? 1.0 : 0.90;
+      const appUtilization = totalAppCapacity > 0
+        ? (passedToAppRps / (totalAppCapacity * algoEfficiency)) * 100
+        : 999;
+
+      // Рассчитываем загрузку каждого узла для отрисовки
+      metrics.appLoads = [];
+      for (let i = 0; i < state.apps; i++) {
+        if (i >= state.apps - state.deadApps) {
+          metrics.appLoads.push(0); // Узел мёртв
+        } else if (!effectiveLb && i > 0) {
+          metrics.appLoads.push(2); // Простаивает без балансировщика
+        } else {
+          // Небольшой естественный джиттер между нодами
+          const jitter = effectiveLb && state.lbAlgo === 'round_robin' ? ((i % 2 === 0 ? 1 : -1) * 4) : 0;
+          metrics.appLoads.push(Math.min(100, Math.max(0, Math.round(appUtilization + jitter))));
+        }
+      }
+      metrics.avgAppLoad = activeReceivingApps > 0 ? Math.min(100, Math.round(appUtilization)) : 100;
+
+      // Потери на уровне App (502/504 при перегрузке > 100% или отсутствии живых узлов)
+      let appDroppedRps = 0;
+      if (activeReceivingApps === 0) {
+        appDroppedRps = passedToAppRps;
+      } else if (appUtilization > 100) {
+        const overloadRatio = (appUtilization - 100) / appUtilization;
+        appDroppedRps = passedToAppRps * Math.min(0.95, overloadRatio * 1.15);
+      }
+
+      const appProcessedRps = Math.max(0, passedToAppRps - appDroppedRps);
+      const appPassRatio = originTotalRps > 0 ? (appProcessedRps / originTotalRps) : 1;
+
+      const survivingReadRps = originReadRps * appPassRatio;
+      const survivingWriteRps = totalWriteRps * appPassRatio;
+
+      // 4. Redis Cache (перехватывает Read-трафик)
+      let actualHitRate = 0;
+      if (state.redis) {
+        actualHitRate = state.stampedeTimer > 0 ? 0.05 : (state.cacheHitRate / 100);
+      }
+      const redisHitRps = survivingReadRps * actualHitRate;
+      const dbReadRps = survivingReadRps - redisHitRps;
+      metrics.redisHitRps = redisHitRps;
+      metrics.redisLoad = state.redis ? Math.min(100, Math.round((survivingReadRps / 6500) * 100)) : 0;
+
+      // 5. Очередь сообщений (RabbitMQ) сглаживает всплески Write-запросов
+      let dbWriteRps = survivingWriteRps;
+      if (state.queue) {
+        const maxDbDrainRate = 450; // Скорость разбора очереди воркерами
+        if (survivingWriteRps > maxDbDrainRate) {
+          const excess = survivingWriteRps - maxDbDrainRate;
+          state.queueDepth = Math.min(15000, state.queueDepth + excess * dt);
+          dbWriteRps = maxDbDrainRate;
+        } else {
+          const drain = Math.min(state.queueDepth, (maxDbDrainRate - survivingWriteRps) * dt);
+          state.queueDepth = Math.max(0, state.queueDepth - drain);
+          dbWriteRps = survivingWriteRps + (drain / dt);
+        }
+      } else {
+        state.queueDepth = 0;
+      }
+
+      metrics.dbReadRps = dbReadRps;
+      metrics.dbWriteRps = dbWriteRps;
+
+      // 6. Кластер PostgreSQL (Primary + Read Replicas)
+      // Индексы ускоряют SELECT в 3.2 раза и INSERT/UPDATE в 1.3 раза
+      const readCostFactor = state.dbIndex ? 0.32 : 1.0;
+      const writeCostFactor = state.dbIndex ? 0.8 : 1.0;
+
+      const primaryCapacity = 420; // Условных единиц нагрузки (IOPS/CPU)
+      const replicaCapacity = 480;
+
+      let primaryDemand = dbWriteRps * 1.45 * writeCostFactor;
+      let replicaDemandPerNode = 0;
+
+      if (state.replicas === 0) {
+        // Если реплик нет, Primary обслуживает и чтение, и запись
+        primaryDemand += dbReadRps * 1.0 * readCostFactor;
+      } else {
+        // Если реплики есть, 90% чтения уходит на них, 10% остаётся на Primary (read-after-write)
+        primaryDemand += (dbReadRps * 0.1) * readCostFactor;
+        replicaDemandPerNode = ((dbReadRps * 0.9) / state.replicas) * readCostFactor;
+      }
+
+      const rawPrimaryLoad = (primaryDemand / primaryCapacity) * 100;
+      const rawReplicaLoad = state.replicas > 0 ? (replicaDemandPerNode / replicaCapacity) * 100 : 0;
+
+      metrics.dbPrimaryLoad = Math.min(100, Math.round(rawPrimaryLoad));
+      metrics.avgReplicaLoad = Math.min(100, Math.round(rawReplicaLoad));
+      metrics.dbReplicaLoads = Array(state.replicas).fill(0).map((_, idx) => {
+        const j = (idx % 2 === 0 ? 2 : -2);
+        return Math.min(100, Math.max(0, Math.round(rawReplicaLoad + j)));
+      });
+
+      // Потери на уровне БД при насыщении > 100%
+      let dbDroppedRps = 0;
+      if (rawPrimaryLoad > 100) {
+        const overP = (rawPrimaryLoad - 100) / rawPrimaryLoad;
+        dbDroppedRps += (dbWriteRps + (state.replicas === 0 ? dbReadRps : 0)) * Math.min(0.95, overP);
+      }
+      if (state.replicas > 0 && rawReplicaLoad > 100) {
+        const overR = (rawReplicaLoad - 100) / rawReplicaLoad;
+        dbDroppedRps += (dbReadRps * 0.9) * Math.min(0.95, overR);
+      }
+
+      // 7. Итоговые показатели Throughput и Errors
+      const totalErrors = Math.min(incomingRps, Math.round(rateLimitedRps + appDroppedRps + dbDroppedRps));
+      const successRps = Math.max(0, incomingRps - totalErrors);
+
+      metrics.errorRps = totalErrors;
+      metrics.successRps = successRps;
+      metrics.errorRate = incomingRps > 0 ? Number(((totalErrors / incomingRps) * 100).toFixed(1)) : 0;
+
+      // 8. Расчёт Latency p95 / p99 по формуле Литтла / M/M/1 (экспоненциальный рост при приближении к 100%)
+      const peakSaturation = Math.max(
+        appUtilization,
+        rawPrimaryLoad,
+        rawReplicaLoad,
+        metrics.redisLoad
+      );
+
+      let baseLatency = 14; // Базовая сетевая задержка (мс)
+      if (state.cdn) baseLatency -= 3;
+      if (state.redis && actualHitRate > 0.5) baseLatency -= 2;
+
+      const clampedSat = Math.min(99.2, peakSaturation);
+      // Формула M/M/1: 1 / (1 - rho)
+      const queueDelay = (clampedSat / (100 - clampedSat)) * 16;
+      const overloadPenalty = peakSaturation > 100 ? Math.min(2500, (peakSaturation - 100) * 18) : 0;
+
+      metrics.latencyP95 = Math.round(baseLatency + queueDelay + overloadPenalty);
+      metrics.latencyP99 = Math.round(metrics.latencyP95 * 1.45 + 8);
+
+      // 9. Определение главного узкого места (Bottleneck)
+      const candidates = [
+        { name: 'App-серверы', load: Math.round(appUtilization) },
+        { name: 'PostgreSQL Primary', load: Math.round(rawPrimaryLoad) },
+        { name: 'DB Read-реплики', load: Math.round(rawReplicaLoad) },
+        { name: 'Redis Кэш', load: metrics.redisLoad }
+      ];
+      candidates.sort((a, b) => b.load - a.load);
+      metrics.maxLoad = Math.min(100, candidates[0].load);
+      metrics.bottleneckName = candidates[0].name;
+      metrics.costPerHour = calculateCost();
+    }
+
+    /**
+     * Обновление истории графиков и проверка лабораторных работ (вызывается раз в 1 сек)
+     */
+    function tickOneSecond() {
+      if (state.paused) return;
+
+      // Сдвиг массивов истории
+      history.successRps.push(metrics.successRps); history.successRps.shift();
+      history.errorRps.push(metrics.errorRps); history.errorRps.shift();
+      history.latencyP95.push(metrics.latencyP95); history.latencyP95.shift();
+      history.latencyP99.push(metrics.latencyP99); history.latencyP99.shift();
+      history.appCpu.push(metrics.avgAppLoad); history.appCpu.shift();
+      history.redisCpu.push(metrics.redisLoad); history.redisCpu.shift();
+      history.dbPrimaryCpu.push(metrics.dbPrimaryLoad); history.dbPrimaryCpu.shift();
+      history.dbReplicaCpu.push(metrics.avgReplicaLoad); history.dbReplicaCpu.shift();
+
+      updateDashboardUI();
+      updateAdvisor();
+      evaluateLabQuest();
+      drawAllCharts();
+    }
+
+    /**
+     * Обновление карточек KPI
+     */
+    function updateDashboardUI() {
+      document.getElementById('kpiSuccessRps').textContent = metrics.successRps.toLocaleString('ru-RU');
+      const successPct = (100 - metrics.errorRate).toFixed(1);
+      const rateEl = document.getElementById('kpiSuccessRate');
+      rateEl.textContent = `${successPct}%`;
+      rateEl.className = metrics.errorRate === 0
+        ? 'text-xs font-mono text-emerald-400'
+        : (metrics.errorRate < 5 ? 'text-xs font-mono text-amber-400' : 'text-xs font-mono text-rose-400');
+
+      const errEl = document.getElementById('kpiErrorRps');
+      errEl.textContent = `${metrics.errorRps} req/s`;
+      errEl.className = metrics.errorRps > 0 ? 'text-rose-400 font-bold' : 'text-slate-300';
+
+      document.getElementById('kpiLatency').textContent = metrics.latencyP95.toLocaleString('ru-RU');
+      document.getElementById('kpiLatencyP99').textContent = `${metrics.latencyP99.toLocaleString('ru-RU')} мс`;
+
+      const latCard = document.getElementById('latencyCard');
+      latCard.className = `glass-panel rounded-xl p-3 border-l-4 ${
+        metrics.latencyP95 < 100 ? 'border-l-sky-500' : (metrics.latencyP95 < 300 ? 'border-l-amber-500' : 'border-l-rose-500')
+      }`;
+
+      document.getElementById('kpiMaxLoad').textContent = `${metrics.maxLoad}%`;
+      document.getElementById('kpiBottleneckNode').textContent = metrics.bottleneckName;
+      document.getElementById('kpiQueueDepth').textContent = `${Math.round(state.queueDepth)} сообщ.`;
+
+      document.getElementById('kpiCost').textContent = `$${metrics.costPerHour.toFixed(2)}`;
+      const costPer1k = metrics.successRps > 0
+        ? ((metrics.costPerHour / 3600) / metrics.successRps) * 1000
+        : 0;
+      document.getElementById('kpiCostPerReq').textContent = `$${costPer1k.toFixed(4)}`;
+    }
+
+    /**
+     * Интеллектуальный диагностический советник (объясняет студенту причину деградации)
+     */
+    function updateAdvisor() {
+      const textEl = document.getElementById('advisorText');
+      const iconEl = document.getElementById('advisorIcon');
+      const bannerEl = document.getElementById('advisorBanner');
+
+      let msg = "";
+      let level = "ok"; // ok | warn | crit
+
+      if (state.apps - state.deadApps <= 0) {
+        level = "crit";
+        msg = "КРИТИЧЕСКИЙ СБОЙ: Все App-серверы остановлены! Ни один запрос не может быть обработан (502 Bad Gateway). Нажмите «Сброс» или добавьте серверы.";
+      } else if (state.apps > 1 && !state.lb) {
+        level = "warn";
+        msg = "АРХИТЕКТУРНАЯ ОШИБКА: У вас несколько App-серверов, но выключен Nginx Load Balancer! Весь трафик идёт только на первый узел, остальные простаивают.";
+      } else if (state.stampedeTimer > 0) {
+        level = "warn";
+        msg = "CACHE STAMPEDE (Лавина кэша): Ключи в Redis одновременно протухли! Сотни запросов пробили кэш и обрушились на PostgreSQL.";
+      } else if (metrics.dbPrimaryLoad >= 92 && !state.dbIndex) {
+        level = "crit";
+        msg = "УЗКОЕ МЕСТО — PostgreSQL Primary (100%): Медленные запросы без индексов (Full Table Scan) исчерпали IOPS базы данных. Включите «B-Tree Индексы»!";
+      } else if (metrics.dbPrimaryLoad >= 92 && state.readRatio >= 70 && !state.redis && state.replicas === 0) {
+        level = "crit";
+        msg = "УЗКОЕ МЕСТО — PostgreSQL Primary перегружен чтением: Включите кэш Redis или добавьте Read-реплики базы данных.";
+      } else if (metrics.dbReplicaLoads.some(l => l >= 92)) {
+        level = "crit";
+        msg = "УЗКОЕ МЕСТО — Read-реплики PostgreSQL насыщены: Добавьте ещё одну Read-реплику или повысьте Cache Hit Rate в Redis.";
+      } else if (metrics.avgAppLoad >= 92) {
+        level = "crit";
+        msg = `УЗКОЕ МЕСТО — App-серверы перегружены (${metrics.avgAppLoad}% CPU): Воркеры не успевают обрабатывать запросы. Добавьте горизонтальные реплики App-серверов (+).`;
+      } else if (metrics.dbPrimaryLoad >= 85 && state.readRatio <= 60 && !state.queue) {
+        level = "warn";
+        msg = "Высокий поток записи (Write) нагружает Primary БД. Включите очередь сообщений (RabbitMQ), чтобы сгладить пики и буферизовать транзакции.";
+      } else if (metrics.errorRate === 0 && metrics.latencyP95 < 60) {
+        level = "ok";
+        msg = `Отличная производительность! Система стабильно держит ${metrics.effectiveRps} RPS (Latency p95: ${metrics.latencyP95} мс). Главный потребитель ресурсов: ${metrics.bottleneckName} (${metrics.maxLoad}%).`;
+      } else {
+        level = "ok";
+        msg = `Система справляется с нагрузкой, но запас прочности снижается (${metrics.bottleneckName}: ${metrics.maxLoad}%). Следите за графиком Latency.`;
+      }
+
+      textEl.textContent = msg;
+      if (level === "crit") {
+        iconEl.className = "fa-solid fa-triangle-exclamation text-rose-400 mt-0.5 text-sm";
+        bannerEl.className = "mt-2.5 p-2.5 rounded-lg bg-rose-950/30 border border-rose-500/40 flex items-start gap-2.5 text-xs";
+      } else if (level === "warn") {
+        iconEl.className = "fa-solid fa-circle-exclamation text-amber-400 mt-0.5 text-sm";
+        bannerEl.className = "mt-2.5 p-2.5 rounded-lg bg-amber-950/30 border border-amber-500/40 flex items-start gap-2.5 text-xs";
+      } else {
+        iconEl.className = "fa-solid fa-circle-check text-emerald-400 mt-0.5 text-sm";
+        bannerEl.className = "mt-2.5 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 flex items-start gap-2.5 text-xs";
+      }
+    }
+
+    /**
+     * Проверка выполнения лабораторной работы (нужно удерживать критерии 5 секунд подряд)
+     */
+    function evaluateLabQuest() {
+      const labId = state.activeLab;
+      if (labId === 0) return;
+
+      const lab = LAB_SCENARIOS[labId];
+      const passedNow = lab.check(state, metrics);
+
+      if (passedNow) {
+        state.labHoldSeconds = Math.min(5, state.labHoldSeconds + 1);
+      } else {
+        state.labHoldSeconds = 0;
+      }
+
+      const pct = (state.labHoldSeconds / 5) * 100;
+      document.getElementById('labProgressBar').style.width = `${pct}%`;
+
+      const badge = document.getElementById('labStatusBadge');
+      if (state.labHoldSeconds >= 5) {
+        badge.textContent = "ЗАЧЁТ ВЫПОЛНЕН ✓";
+        badge.className = "text-[11px] font-mono font-bold px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 whitespace-nowrap";
+      } else if (passedNow) {
+        badge.textContent = `Удержание: ${state.labHoldSeconds}/5 сек`;
+        badge.className = "text-[11px] font-mono px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 whitespace-nowrap";
+      } else {
+        badge.textContent = "Условия не выполнены";
+        badge.className = "text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 whitespace-nowrap";
+      }
+    }
+
+    /**
+     * ============================================================================
+     * ВИЗУАЛЬНЫЙ РЕНДЕРИНГ ТОПОЛОГИИ И АНИМИРОВАННЫХ ПАКЕТОВ (HTML5 CANVAS)
+     * ============================================================================
+     */
+    const topoCanvas = document.getElementById('topologyCanvas');
+    const topoCtx = topoCanvas.getContext('2d');
+    let particles = [];
+    let renderedNodes = []; // Для обработки наведения мыши (tooltip)
+    let hoveredNode = null;
+
+    function resizeTopoCanvas() {
+      const rect = topoCanvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      topoCanvas.width = rect.width * dpr;
+      topoCanvas.height = rect.height * dpr;
+      topoCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener('resize', () => {
+      resizeTopoCanvas();
+      drawAllCharts();
+    });
+
+    /**
+     * Генерация и обновление летящих пакетов трафика
+     */
+    function updateParticles(width, height) {
+      if (state.paused) return;
+
+      // Спавн новых пакетов пропорционально RPS (ограничено для плавности 60 FPS)
+      const spawnRate = Math.min(8, Math.ceil(metrics.effectiveRps / 220));
+      for (let i = 0; i < spawnRate; i++) {
+        if (particles.length > 160) break;
+
+        const isRead = Math.random() * 100 < state.readRatio;
+        let outcome = 'db'; // 'cdn' | 'redis' | 'db' | 'error'
+
+        const errProb = metrics.errorRate / 100;
+        if (Math.random() < errProb) {
+          outcome = 'error';
+        } else if (isRead && state.cdn && Math.random() < 0.35) {
+          outcome = 'cdn';
+        } else if (isRead && state.redis && state.stampedeTimer <= 0 && Math.random() < (state.cacheHitRate / 100)) {
+          outcome = 'redis';
+        }
+
+        const appIdx = state.lb && state.apps > 1
+          ? Math.floor(Math.random() * Math.max(1, state.apps - state.deadApps))
+          : 0;
+
+        const replicaIdx = (isRead && state.replicas > 0 && Math.random() < 0.9)
+          ? Math.floor(Math.random() * state.replicas)
+          : -1; // -1 означает Primary DB
+
+        particles.push({
+          progress: 0,
+          speed: 0.014 + Math.random() * 0.008,
+          isRead,
+          outcome,
+          appIdx,
+          replicaIdx,
+          offsetY: (Math.random() - 0.5) * 8
+        });
+      }
+
+      // Движение пакетов
+      for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].progress += particles[i].speed;
+        if (particles[i].progress >= 1) {
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    /**
+     * Вспомогательная функция отрисовки скруглённого прямоугольника узла
+     */
+    function drawNodeBox(ctx, node) {
+      renderedNodes.push(node);
+      const { x, y, w, h, title, subtitle, load, active, dead, accentColor, iconText } = node;
+
+      ctx.save();
+      // Тень
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 4;
+
+      // Фон карточки
+      ctx.fillStyle = dead ? 'rgba(69, 10, 10, 0.85)' : (active ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 23, 42, 0.45)');
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 8);
+      ctx.fill();
+
+      // Рамка
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = hoveredNode && hoveredNode.id === node.id ? 2 : 1.5;
+      if (dead) {
+        ctx.strokeStyle = '#ef4444';
+      } else if (!active) {
+        ctx.strokeStyle = '#334155';
+        ctx.setLineDash([4, 4]);
+      } else if (load >= 90) {
+        ctx.strokeStyle = '#ef4444';
+      } else if (load >= 70) {
+        ctx.strokeStyle = '#f59e0b';
+      } else {
+        ctx.strokeStyle = accentColor || '#38bdf8';
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Заголовок узла
+      ctx.fillStyle = dead ? '#fca5a5' : (active ? '#f8fafc' : '#64748b');
+      ctx.font = '600 11px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(title, x + 8, y + 16);
+
+      // Подзаголовок
+      if (subtitle) {
+        ctx.fillStyle = active ? '#94a3b8' : '#475569';
+        ctx.font = '10px JetBrains Mono, monospace';
+        ctx.fillText(subtitle, x + 8, y + 29);
+      }
+
+      // Индикатор загрузки (Progress bar внутри узла)
+      if (active && !dead && typeof load === 'number') {
+        const barW = w - 16;
+        const barH = 5;
+        const barY = y + h - 11;
+
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.roundRect(x + 8, barY, barW, barH, 3);
+        ctx.fill();
+
+        const fillColor = load >= 90 ? '#ef4444' : (load >= 70 ? '#f59e0b' : '#10b981');
+        ctx.fillStyle = fillColor;
+        ctx.beginPath();
+        ctx.roundRect(x + 8, barY, Math.max(2, (barW * Math.min(100, load)) / 100), barH, 3);
+        ctx.fill();
+
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '600 9px JetBrains Mono, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${load}%`, x + w - 8, y + 16);
+      } else if (dead) {
+        ctx.fillStyle = '#f87171';
+        ctx.font = '700 9px JetBrains Mono, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('DOWN', x + w - 8, y + 16);
+      }
+
+      ctx.restore();
+    }
+
+    /**
+     * Отрисовка плавной кривой Безье между узлами
+     */
+    function drawConnection(ctx, x1, y1, x2, y2, active = true, color = '#334155') {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      const cpX = (x1 + x2) / 2;
+      ctx.bezierCurveTo(cpX, y1, cpX, y2, x2, y2);
+      ctx.strokeStyle = active ? color : 'rgba(51, 65, 85, 0.35)';
+      ctx.lineWidth = active ? 1.8 : 1;
+      if (!active) ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /**
+     * Главный цикл отрисовки топологии
+     */
+    function renderTopology() {
+      const rect = topoCanvas.parentElement.getBoundingClientRect();
+      const W = rect.width;
+      const H = rect.height;
+      topoCtx.clearRect(0, 0, W, H);
+      renderedNodes = [];
+
+      // Фоновая инженерная сетка
+      topoCtx.strokeStyle = 'rgba(30, 41, 59, 0.45)';
+      topoCtx.lineWidth = 1;
+      for (let gx = 0; gx < W; gx += 28) {
+        topoCtx.beginPath(); topoCtx.moveTo(gx, 0); topoCtx.lineTo(gx, H); topoCtx.stroke();
+      }
+      for (let gy = 0; gy < H; gy += 28) {
+        topoCtx.beginPath(); topoCtx.moveTo(0, gy); topoCtx.lineTo(W, gy); topoCtx.stroke();
+      }
+
+      // Расчёт координат колонок (5 логических уровней слева направо)
+      const padX = Math.max(12, W * 0.025);
+      const colW = Math.min(138, (W - padX * 2) / 6.3);
+      const col1X = padX; // Клиенты + CDN
+      const col2X = padX + (W - padX * 2 - colW) * 0.24; // Load Balancer
+      const col3X = padX + (W - padX * 2 - colW) * 0.50; // App Servers
+      const col4X = padX + (W - padX * 2 - colW) * 0.75; // Redis + Queue
+      const col5X = W - padX - colW; // PostgreSQL Cluster
+
+      const midY = H / 2;
+
+      // Координаты узлов
+      const clientNode = {
+        id: 'clients',
+        x: col1X, y: midY - 26, w: colW, h: 52,
+        title: 'Клиенты',
+        subtitle: `${metrics.effectiveRps} RPS`,
+        active: true,
+        accentColor: '#38bdf8',
+        desc: 'Генератор входящего HTTP/HTTPS трафика (смесь Read и Write запросов).'
+      };
+
+      const cdnNode = {
+        id: 'cdn',
+        x: col1X, y: 18, w: colW, h: 46,
+        title: 'CDN Edge',
+        subtitle: state.cdn ? `-${Math.round(metrics.cdnSavedRps)} RPS` : 'Выкл.',
+        active: state.cdn,
+        accentColor: '#22d3ee',
+        desc: 'Сеть доставки контента. Кэширует статику и часть GET-запросов ближе к пользователю.'
+      };
+
+      const lbNode = {
+        id: 'lb',
+        x: col2X, y: midY - 28, w: colW, h: 56,
+        title: 'Nginx LB',
+        subtitle: (state.lb && state.apps > 1) ? (state.lbAlgo === 'least_conn' ? 'LeastConn' : 'RoundRobin') : 'Bypass',
+        active: state.lb && state.apps > 1,
+        accentColor: '#818cf8',
+        desc: 'Балансировщик нагрузки и Reverse Proxy. Распределяет запросы между живыми App-серверами.'
+      };
+
+      // App-серверы (от 1 до 6)
+      const appH = Math.min(44, (H - 36) / Math.max(state.apps, 3) - 6);
+      const totalAppsH = state.apps * appH + (state.apps - 1) * 6;
+      const appStartY = midY - totalAppsH / 2;
+      const appNodes = [];
+
+      for (let i = 0; i < state.apps; i++) {
+        const isDead = i >= state.apps - state.deadApps;
+        appNodes.push({
+          id: `app_${i}`,
+          x: col3X,
+          y: appStartY + i * (appH + 6),
+          w: colW,
+          h: appH,
+          title: `App #${i + 1}`,
+          subtitle: isDead ? 'Отказ узла' : 'Worker',
+          load: metrics.appLoads[i] || 0,
+          active: true,
+          dead: isDead,
+          accentColor: '#38bdf8',
+          desc: 'Экземпляр бэкенд-приложения. Выполняет бизнес-логику, ходит в Redis, очередь и БД.'
+        });
+      }
+
+      // Redis & Message Queue (Колонка 4)
+      const redisNode = {
+        id: 'redis',
+        x: col4X, y: midY - 68, w: colW, h: 52,
+        title: 'Redis Cache',
+        subtitle: state.redis ? `Hit: ${state.stampedeTimer > 0 ? 5 : state.cacheHitRate}%` : 'Выкл.',
+        load: metrics.redisLoad,
+        active: state.redis,
+        accentColor: '#10b981',
+        desc: 'In-memory хранилище (RAM). Мгновенно отдаёт закэшированные Read-запросы без обращения к БД.'
+      };
+
+      const queueNode = {
+        id: 'queue',
+        x: col4X, y: midY + 16, w: colW, h: 52,
+        title: 'RabbitMQ',
+        subtitle: state.queue ? `Q: ${Math.round(state.queueDepth)}` : 'Выкл.',
+        load: state.queue ? Math.min(100, Math.round((state.queueDepth / 5000) * 100)) : 0,
+        active: state.queue,
+        accentColor: '#c084fc',
+        desc: 'Брокер сообщений. Принимает Write-задачи при пиковых всплесках и плавно отдаёт их в БД.'
+      };
+
+      // PostgreSQL Cluster (Колонка 5: 1 Primary + N Replicas)
+      const totalDbCount = 1 + state.replicas;
+      const dbH = Math.min(46, (H - 36) / Math.max(totalDbCount, 3) - 6);
+      const totalDbsH = totalDbCount * dbH + (totalDbCount - 1) * 6;
+      const dbStartY = midY - totalDbsH / 2;
+
+      const primaryDbNode = {
+        id: 'db_primary',
+        x: col5X,
+        y: dbStartY,
+        w: colW,
+        h: dbH,
+        title: 'PG Primary',
+        subtitle: state.dbIndex ? 'Master +Idx' : 'Master (NoIdx)',
+        load: metrics.dbPrimaryLoad,
+        active: true,
+        accentColor: '#f59e0b',
+        desc: 'Главный узел PostgreSQL. Принимает все операции записи (INSERT/UPDATE) и чтение при отсутствии реплик.'
+      };
+
+      const replicaNodes = [];
+      for (let r = 0; r < state.replicas; r++) {
+        replicaNodes.push({
+          id: `db_rep_${r}`,
+          x: col5X,
+          y: dbStartY + (r + 1) * (dbH + 6),
+          w: colW,
+          h: dbH,
+          title: `PG Replica #${r + 1}`,
+          subtitle: 'Read-Only',
+          load: metrics.dbReplicaLoads[r] || 0,
+          active: true,
+          accentColor: '#38bdf8',
+          desc: 'Асинхронная Read-реплика PostgreSQL. Разгружает Primary-сервер, беря на себя 90% SELECT-запросов.'
+        });
+      }
+
+      // --- ОТРИСОВКА ЛИНИЙ СВЯЗЕЙ ---
+      // Clients -> CDN
+      drawConnection(topoCtx, clientNode.x + colW / 2, clientNode.y, cdnNode.x + colW / 2, cdnNode.y + cdnNode.h, state.cdn, 'rgba(34, 211, 238, 0.45)');
+      // Clients -> LB
+      drawConnection(topoCtx, clientNode.x + colW, clientNode.y + clientNode.h / 2, lbNode.x, lbNode.y + lbNode.h / 2, true, 'rgba(56, 189, 248, 0.45)');
+
+      // LB -> App Nodes
+      appNodes.forEach((app, idx) => {
+        const isConnected = (state.lb && state.apps > 1) || idx === 0;
+        drawConnection(topoCtx, lbNode.x + colW, lbNode.y + lbNode.h / 2, app.x, app.y + app.h / 2, isConnected && !app.dead, 'rgba(129, 140, 248, 0.45)');
+
+        // App -> Redis & Queue & DB
+        if (!app.dead && isConnected) {
+          if (state.redis) {
+            drawConnection(topoCtx, app.x + colW, app.y + app.h / 2, redisNode.x, redisNode.y + redisNode.h / 2, true, 'rgba(16, 185, 129, 0.35)');
+          }
+          if (state.queue) {
+            drawConnection(topoCtx, app.x + colW, app.y + app.h / 2, queueNode.x, queueNode.y + queueNode.h / 2, true, 'rgba(192, 132, 252, 0.35)');
+          }
+          drawConnection(topoCtx, app.x + colW, app.y + app.h / 2, primaryDbNode.x, primaryDbNode.y + primaryDbNode.h / 2, true, 'rgba(245, 158, 11, 0.25)');
+          replicaNodes.forEach(rep => {
+            drawConnection(topoCtx, app.x + colW, app.y + app.h / 2, rep.x, rep.y + rep.h / 2, true, 'rgba(56, 189, 248, 0.22)');
+          });
+        }
+      });
+
+      // Queue -> Primary DB
+      if (state.queue) {
+        drawConnection(topoCtx, queueNode.x + colW, queueNode.y + queueNode.h / 2, primaryDbNode.x, primaryDbNode.y + primaryDbNode.h / 2, true, 'rgba(192, 132, 252, 0.55)');
+      }
+
+      // Primary -> Replicas (Репликация WAL)
+      replicaNodes.forEach(rep => {
+        drawConnection(topoCtx, primaryDbNode.x + colW / 2, primaryDbNode.y + primaryDbNode.h, rep.x + colW / 2, rep.y, true, 'rgba(245, 158, 11, 0.35)');
+      });
+
+      // --- ОБНОВЛЕНИЕ И ОТРИСОВКА АНИМИРОВАННЫХ ПАКЕТОВ ---
+      updateParticles(W, H);
+
+      particles.forEach(p => {
+        const startX = clientNode.x + colW;
+        const startY = clientNode.y + clientNode.h / 2 + p.offsetY;
+        const lbX = lbNode.x + colW / 2;
+        const lbY = lbNode.y + lbNode.h / 2 + p.offsetY;
+
+        const targetApp = appNodes[Math.min(p.appIdx, appNodes.length - 1)] || appNodes[0];
+        const appX = targetApp.x + colW / 2;
+        const appY = targetApp.y + targetApp.h / 2;
+
+        let px = startX;
+        let py = startY;
+        let color = p.isRead ? '#38bdf8' : '#f59e0b';
+
+        if (p.outcome === 'cdn') {
+          // Летит в CDN и возвращается зелёным
+          const t = p.progress < 0.5 ? p.progress * 2 : (1 - p.progress) * 2;
+          px = clientNode.x + colW / 2 + (cdnNode.x - clientNode.x) * t;
+          py = clientNode.y + (cdnNode.y + cdnNode.h - clientNode.y) * t;
+          color = p.progress < 0.5 ? '#38bdf8' : '#22d3ee';
+        } else if (p.progress < 0.25) {
+          // Участок 1: Clients -> LB
+          const t = p.progress / 0.25;
+          px = startX + (lbX - startX) * t;
+          py = startY + (lbY - startY) * t;
+        } else if (p.progress < 0.50) {
+          // Участок 2: LB -> App
+          const t = (p.progress - 0.25) / 0.25;
+          px = lbX + (appX - lbX) * t;
+          py = lbY + (appY - lbY) * t;
+          if (p.outcome === 'error' && t > 0.7) color = '#ef4444';
+        } else if (p.outcome === 'redis') {
+          // Участок 3: App <-> Redis (Cache Hit)
+          const subT = (p.progress - 0.50) / 0.50;
+          const pingPong = subT < 0.5 ? subT * 2 : (1 - subT) * 2;
+          px = appX + (redisNode.x + colW / 2 - appX) * pingPong;
+          py = appY + (redisNode.y + redisNode.h / 2 - appY) * pingPong;
+          color = subT < 0.5 ? '#38bdf8' : '#10b981';
+        } else {
+          // Участок 3: App -> (Queue) -> DB Primary / Replica
+          const subT = (p.progress - 0.50) / 0.50;
+          const targetDb = (p.replicaIdx >= 0 && replicaNodes[p.replicaIdx])
+            ? replicaNodes[p.replicaIdx]
+            : primaryDbNode;
+
+          if (!p.isRead && state.queue) {
+            // Через очередь RabbitMQ
+            if (subT < 0.5) {
+              const t2 = subT * 2;
+              px = appX + (queueNode.x + colW / 2 - appX) * t2;
+              py = appY + (queueNode.y + queueNode.h / 2 - appY) * t2;
+            } else {
+              const t2 = (subT - 0.5) * 2;
+              px = (queueNode.x + colW / 2) + (targetDb.x - (queueNode.x + colW / 2)) * t2;
+              py = (queueNode.y + queueNode.h / 2) + (targetDb.y + targetDb.h / 2 - (queueNode.y + queueNode.h / 2)) * t2;
+            }
+            color = '#c084fc';
+          } else {
+            px = appX + (targetDb.x - appX) * subT;
+            py = appY + (targetDb.y + targetDb.h / 2 - appY) * subT;
+            if (p.outcome === 'error' && subT > 0.6) color = '#ef4444';
+          }
+        }
+
+        topoCtx.beginPath();
+        topoCtx.arc(px, py, 3.2, 0, Math.PI * 2);
+        topoCtx.fillStyle = color;
+        topoCtx.fill();
+      });
+
+      // --- ОТРИСОВКА КАРТОЧЕК УЗЛОВ ПОВЕРХ ЛИНИЙ И ПАКЕТОВ ---
+      drawNodeBox(topoCtx, clientNode);
+      drawNodeBox(topoCtx, cdnNode);
+      drawNodeBox(topoCtx, lbNode);
+      appNodes.forEach(n => drawNodeBox(topoCtx, n));
+      drawNodeBox(topoCtx, redisNode);
+      drawNodeBox(topoCtx, queueNode);
+      drawNodeBox(topoCtx, primaryDbNode);
+      replicaNodes.forEach(n => drawNodeBox(topoCtx, n));
+
+      requestAnimationFrame(renderTopology);
+    }
+
+    // Обработка наведения мыши на холст для показа инженерных подсказок
+    topoCanvas.addEventListener('mousemove', (e) => {
+      const rect = topoCanvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      hoveredNode = renderedNodes.find(n => mx >= n.x && mx <= n.x + n.w && my >= n.y && my <= n.y + n.h) || null;
+      const tooltip = document.getElementById('nodeTooltip');
+
+      if (hoveredNode) {
+        topoCanvas.style.cursor = 'pointer';
+        tooltip.classList.remove('hidden');
+        document.getElementById('tooltipTitle').textContent = hoveredNode.title;
+        document.getElementById('tooltipDesc').textContent = hoveredNode.desc;
+        document.getElementById('tooltipMetrics').textContent = typeof hoveredNode.load === 'number'
+          ? `Утилизация: ${hoveredNode.load}% • Статус: ${hoveredNode.dead ? 'DOWN' : (hoveredNode.active ? 'ONLINE' : 'DISABLED')}`
+          : `Поток: ${hoveredNode.subtitle}`;
+
+        const tipX = Math.min(rect.width - 230, mx + 12);
+        const tipY = Math.min(rect.height - 100, my + 12);
+        tooltip.style.left = `${Math.max(8, tipX)}px`;
+        tooltip.style.top = `${Math.max(8, tipY)}px`;
+      } else {
+        topoCanvas.style.cursor = 'default';
+        tooltip.classList.add('hidden');
+      }
+    });
+
+    topoCanvas.addEventListener('mouseleave', () => {
+      hoveredNode = null;
+      document.getElementById('nodeTooltip').classList.add('hidden');
+    });
+
+    /**
+     * ============================================================================
+     * ОТРИСОВКА ГРАФИКОВ МОНИТОРИНГА (GRAFANA-STYLE TIME SERIES)
+     * ============================================================================
+     */
+    function drawTimeSeriesChart(canvasId, seriesList, maxValOverride = null, unit = '') {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const W = rect.width;
+      const H = rect.height;
+      const padL = 36;
+      const padR = 8;
+      const padT = 18;
+      const padB = 14;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      ctx.clearRect(0, 0, W, H);
+
+      // Вычисляем максимум по Y
+      let maxVal = maxValOverride;
+      if (!maxVal) {
+        maxVal = 10;
+        seriesList.forEach(s => {
+          const m = Math.max(...s.data);
+          if (m > maxVal) maxVal = m;
+        });
+        maxVal = Math.ceil(maxVal * 1.15);
+      }
+
+      // Горизонтальные линии сетки и подписи оси Y
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.textAlign = 'right';
+      for (let i = 0; i <= 3; i++) {
+        const val = Math.round((maxVal / 3) * i);
+        const y = padT + plotH - (plotH * (i / 3));
+
+        ctx.strokeStyle = 'rgba(51, 65, 85, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(W - padR, y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(`${val}${unit}`, padL - 4, y + 3);
+      }
+
+      // Отрисовка каждой серии данных
+      seriesList.forEach(series => {
+        ctx.save();
+        ctx.beginPath();
+        series.data.forEach((v, idx) => {
+          const x = padL + (idx / (HISTORY_LEN - 1)) * plotW;
+          const clamped = Math.min(maxVal, Math.max(0, v));
+          const y = padT + plotH - (clamped / maxVal) * plotH;
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = series.color;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        // Полупрозрачная заливка под линией
+        ctx.lineTo(padL + plotW, padT + plotH);
+        ctx.lineTo(padL, padT + plotH);
+        ctx.closePath();
+        ctx.fillStyle = series.fill;
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // Легенда сверху графика
+      let legX = padL;
+      ctx.font = '600 9px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      seriesList.forEach(s => {
+        const lastVal = s.data[s.data.length - 1];
+        const label = `${s.label}: ${lastVal}${unit}`;
+        ctx.fillStyle = s.color;
+        ctx.fillRect(legX, 4, 7, 7);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillText(label, legX + 10, 11);
+        legX += ctx.measureText(label).width + 20;
+      });
+    }
+
+    function drawAllCharts() {
+      drawTimeSeriesChart('chartRps', [
+        { label: 'OK', data: history.successRps, color: '#10b981', fill: 'rgba(16, 185, 129, 0.12)' },
+        { label: 'Err', data: history.errorRps, color: '#ef4444', fill: 'rgba(239, 68, 68, 0.18)' }
+      ]);
+
+      drawTimeSeriesChart('chartLatency', [
+        { label: 'p99', data: history.latencyP99, color: '#f59e0b', fill: 'rgba(245, 158, 11, 0.08)' },
+        { label: 'p95', data: history.latencyP95, color: '#38bdf8', fill: 'rgba(56, 189, 248, 0.15)' }
+      ], null, 'мс');
+
+      drawTimeSeriesChart('chartCpu', [
+        { label: 'PG Master', data: history.dbPrimaryCpu, color: '#f59e0b', fill: 'rgba(245, 158, 11, 0.1)' },
+        { label: 'App', data: history.appCpu, color: '#38bdf8', fill: 'rgba(56, 189, 248, 0.1)' },
+        { label: 'Redis', data: history.redisCpu, color: '#10b981', fill: 'rgba(16, 185, 129, 0.08)' }
+      ], 100, '%');
+    }
+
+    /**
+     * ============================================================================
+     * ОБРАБОТЧИКИ ПОЛЬЗОВАТЕЛЬСКОГО ИНТЕРФЕЙСА (UI CONTROLS)
+     * ============================================================================
+     */
+    function syncUIFromState() {
+      document.getElementById('rpsSlider').value = state.rps;
+      document.getElementById('rpsValueLabel').textContent = `${state.rps.toLocaleString('ru-RU')} req/s`;
+
+      document.getElementById('rwSlider').value = state.readRatio;
+      document.getElementById('readPctLabel').textContent = `${state.readRatio}%`;
+      document.getElementById('writePctLabel').textContent = `${100 - state.readRatio}%`;
+
+      document.getElementById('toggleCdn').checked = state.cdn;
+      document.getElementById('toggleLb').checked = state.lb;
+      document.getElementById('lbAlgo').value = state.lbAlgo;
+      document.getElementById('toggleRateLimit').checked = state.rateLimit;
+
+      document.getElementById('appCountLabel').textContent = state.apps;
+      document.getElementById('deadNodesBadge').textContent = `${state.deadApps} упало`;
+
+      document.getElementById('toggleQueue').checked = state.queue;
+      document.getElementById('toggleRedis').checked = state.redis;
+      document.getElementById('redisOptions').classList.toggle('hidden', !state.redis);
+      document.getElementById('cacheHitSlider').value = state.cacheHitRate;
+      document.getElementById('cacheHitLabel').textContent = `${state.cacheHitRate}%`;
+
+      document.getElementById('replicaCountLabel').textContent = state.replicas;
+      document.getElementById('toggleDbIndex').checked = state.dbIndex;
+      document.getElementById('infraCostLabel').textContent = `$${calculateCost().toFixed(2)} / ч`;
+    }
+
+    function updateFlashSaleUI() {
+      const btn = document.getElementById('btnFlashSale');
+      const txt = document.getElementById('flashSaleText');
+      if (state.flashSaleTimer > 0) {
+        txt.textContent = `FLASH SALE АКТИВЕН (${Math.ceil(state.flashSaleTimer)} сек)...`;
+        btn.classList.add('animate-pulse', 'border-amber-400', 'text-white');
+      } else {
+        txt.textContent = 'Запустить Flash Sale (x3 на 10 сек)';
+        btn.classList.remove('animate-pulse', 'border-amber-400', 'text-white');
+      }
+    }
+
+    // Привязка событий к элементам управления
+    document.getElementById('rpsSlider').addEventListener('input', (e) => {
+      state.rps = Number(e.target.value);
+      document.getElementById('rpsValueLabel').textContent = `${state.rps.toLocaleString('ru-RU')} req/s`;
+    });
+
+    document.getElementById('rwSlider').addEventListener('input', (e) => {
+      state.readRatio = Number(e.target.value);
+      document.getElementById('readPctLabel').textContent = `${state.readRatio}%`;
+      document.getElementById('writePctLabel').textContent = `${100 - state.readRatio}%`;
+    });
+
+    document.getElementById('btnFlashSale').addEventListener('click', () => {
+      state.flashSaleTimer = 10;
+      updateFlashSaleUI();
+    });
+
+    document.getElementById('toggleCdn').addEventListener('change', (e) => {
+      state.cdn = e.target.checked;
+      syncUIFromState();
+    });
+
+    document.getElementById('toggleLb').addEventListener('change', (e) => {
+      state.lb = e.target.checked;
+      syncUIFromState();
+    });
+
+    document.getElementById('lbAlgo').addEventListener('change', (e) => {
+      state.lbAlgo = e.target.value;
+    });
+
+    document.getElementById('toggleRateLimit').addEventListener('change', (e) => {
+      state.rateLimit = e.target.checked;
+    });
+
+    document.getElementById('btnAddApp').addEventListener('click', () => {
+      if (state.apps < 6) {
+        state.apps++;
+        if (state.apps === 2) state.lb = true; // Удобство: авто-включение LB при 2-м сервере
+        syncUIFromState();
+      }
+    });
+
+    document.getElementById('btnRemoveApp').addEventListener('click', () => {
+      if (state.apps > 1) {
+        state.apps--;
+        if (state.deadApps >= state.apps) state.deadApps = Math.max(0, state.apps - 1);
+        syncUIFromState();
+      }
+    });
+
+    document.getElementById('toggleQueue').addEventListener('change', (e) => {
+      state.queue = e.target.checked;
+      syncUIFromState();
+    });
+
+    document.getElementById('toggleRedis').addEventListener('change', (e) => {
+      state.redis = e.target.checked;
+      syncUIFromState();
+    });
+
+    document.getElementById('cacheHitSlider').addEventListener('input', (e) => {
+      state.cacheHitRate = Number(e.target.value);
+      document.getElementById('cacheHitLabel').textContent = `${state.cacheHitRate}%`;
+    });
+
+    document.getElementById('btnAddReplica').addEventListener('click', () => {
+      if (state.replicas < 4) {
+        state.replicas++;
+        syncUIFromState();
+      }
+    });
+
+    document.getElementById('btnRemoveReplica').addEventListener('click', () => {
+      if (state.replicas > 0) {
+        state.replicas--;
+        syncUIFromState();
+      }
+    });
+
+    document.getElementById('toggleDbIndex').addEventListener('change', (e) => {
+      state.dbIndex = e.target.checked;
+    });
+
+    // Chaos Engineering кнопки
+    document.getElementById('btnKillNode').addEventListener('click', () => {
+      if (state.deadApps < state.apps) {
+        state.deadApps++;
+        syncUIFromState();
+      }
+    });
+
+    document.getElementById('btnCacheStampede').addEventListener('click', () => {
+      if (state.redis) {
+        state.stampedeTimer = 8;
+      }
+    });
+
+    // Выбор лабораторного задания
+    document.getElementById('labSelector').addEventListener('change', (e) => {
+      const id = Number(e.target.value);
+      state.activeLab = id;
+      state.labHoldSeconds = 0;
+
+      const banner = document.getElementById('labDescriptionBanner');
+      const progContainer = document.getElementById('labProgressContainer');
+
+      if (id === 0) {
+        banner.classList.add('hidden');
+        progContainer.classList.add('hidden');
+        return;
+      }
+
+      const lab = LAB_SCENARIOS[id];
+      banner.classList.remove('hidden');
+      progContainer.classList.remove('hidden');
+
+      document.getElementById('labGoalText').textContent = lab.goal;
+      const pillsBox = document.getElementById('labCriteriaPills');
+      pillsBox.innerHTML = lab.pills.map(p =>
+        `<span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">${p}</span>`
+      ).join('');
+
+      // Применяем стартовый пресет для лабораторной работы
+      if (lab.preset) {
+        Object.assign(state, lab.preset, { deadApps: 0, flashSaleTimer: 0, stampedeTimer: 0, queueDepth: 0 });
+        syncUIFromState();
+        updateFlashSaleUI();
+      }
+    });
+
+    // Пауза и Сброс
+    document.getElementById('btnPause').addEventListener('click', () => {
+      state.paused = !state.paused;
+      document.getElementById('pauseIcon').className = state.paused ? 'fa-solid fa-play' : 'fa-solid fa-pause';
+      document.getElementById('pauseText').textContent = state.paused ? 'Продолжить' : 'Пауза';
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      Object.assign(state, {
+        paused: false,
+        rps: 120,
+        readRatio: 80,
+        flashSaleTimer: 0,
+        cdn: false,
+        lb: true,
+        lbAlgo: 'round_robin',
+        rateLimit: false,
+        apps: 1,
+        deadApps: 0,
+        queue: false,
+        queueDepth: 0,
+        redis: false,
+        cacheHitRate: 85,
+        stampedeTimer: 0,
+        replicas: 0,
+        dbIndex: false,
+        labHoldSeconds: 0
+      });
+      document.getElementById('labSelector').value = "0";
+      document.getElementById('labDescriptionBanner').classList.add('hidden');
+      document.getElementById('labProgressContainer').classList.add('hidden');
+      syncUIFromState();
+      updateFlashSaleUI();
+    });
+
+    // Инициализация при загрузке окна
+    window.addEventListener('load', () => {
+      resizeTopoCanvas();
+      syncUIFromState();
+      stepSimulation(0.25);
+      updateDashboardUI();
+      drawAllCharts();
+
+      // Запуск циклов симуляции
+      setInterval(() => stepSimulation(0.25), 250);
+      setInterval(tickOneSecond, 1000);
+      requestAnimationFrame(renderTopology);
+    });
+  </script>
+</body>
+</html>
